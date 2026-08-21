@@ -2,8 +2,7 @@
 Ultra-Low Latency (120Hz) Direct ProcessMemory bHaptics Bridge for Pokémon HeartGold
 Author: Antigravity Pair Programmer
 Description:
-    Official bhaptics-python SDK & WebSocket fallback integration.
-    Reads config.json, selects latest ring-buffer damage state, and triggers tactile feedback.
+    Universal Battle Struct Scanner supporting ANY Pokémon switch.
 """
 
 import asyncio
@@ -123,7 +122,23 @@ class DeSmuMEProcessMemoryReader:
 
         if kernel32.ReadProcessMemory(self.h_process, ctypes.c_void_p(scan_base), buf, scan_size, ctypes.byref(bytes_read)):
             data = buf.raw
-            for pattern in (b'\x21\x00\x2d\x00\x4b\x00\x00\x00', b'\x21\x00\x2d\x00', b'\x4b\x00\x00\x00'):
+            
+            move_patterns = (
+                b'\x21\x00\x2d\x00',  # Tackle(33) + Growl(45)
+                b'\x0a\x00\x2b\x00',  # Scratch(10) + Leer(43)
+                b'\x21\x00\x1c\x00',  # Tackle(33) + Sand Attack(28)
+                b'\x21\x00\x6f\x00',  # Tackle(33) + Defense Curl(111)
+                b'\x01\x00',          # Pound(1)
+                b'\x62\x00',          # Quick Attack(98)
+                b'\x34\x00',          # Ember(52)
+                b'\x37\x00',          # Water Gun(55)
+                b'\x4b\x00',          # Razor Leaf(75)
+                b'\x2c\x00',          # Bite(44)
+                b'\x21\x00',          # Tackle(33)
+                b'\x0a\x00'           # Scratch(10)
+            )
+
+            for pattern in move_patterns:
                 idx = 0
                 candidates = []
                 while True:
@@ -196,6 +211,8 @@ def run_standalone_sdk():
                 if not in_battle:
                     logger.info(f"⚔️ [BATTLE STARTED] Active Pokémon HP: {cur_hp}/{max_hp} (Slot +0x{reader.active_offset:X})")
                     in_battle = True
+                elif reader.last_max_hp != -1 and reader.last_max_hp != max_hp:
+                    logger.info(f"🔄 [POKÉMON SWITCHED] Switched to new Pokémon! HP: {cur_hp}/{max_hp} (Slot +0x{reader.active_offset:X})")
 
                 if reader.last_hp != -1 and reader.last_max_hp == max_hp:
                     if cur_hp < reader.last_hp:

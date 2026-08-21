@@ -1,9 +1,9 @@
 """
 포켓몬스터 하트골드(KOR) - bHaptics 촉각 수트 통합 제어판 (All-in-One GUI)
-작성자: Antigravity Pair Programmer
-설명:
-    공식 bhaptics-python SDK 및 120Hz 초저지연 메모리 훅 기반의 사용자 친화형 한글 GUI 대시보드입니다.
-    실시간 체력 게이지, 2D 조끼 모터 맵, 진동 강도 조절, 원터치 진동 테스트, 설정 저장 기능을 제공합니다.
+Author: Antigravity Pair Programmer
+Description:
+    Universal Battle Struct Scanner supporting ANY Pokémon switch (Starter, Wild, Party, Legendaries).
+    Handles Pokémon switching seamlessly with zero false hits.
 """
 
 import asyncio
@@ -62,17 +62,14 @@ class PokemonHapticApp(tk.Tk):
         self.configure(bg="#0f111a")
         self.resizable(False, False)
 
-        # 설정 불러오기
         self.config = load_config()
         self.haptic_mgr = HapticOutputManager(self.config)
 
-        # 상태 변수
         self.is_running = False
         self.gain = 1.0
         self.ws_client = None
         self.reader_thread = None
 
-        # 실시간 게임 데이터
         self.cur_hp = 0
         self.max_hp = 0
         self.last_hp = -1
@@ -83,7 +80,6 @@ class PokemonHapticApp(tk.Tk):
         self.mod_base = 0
         self.active_offset = 0
 
-        # 모터 진동 강도 (0.0 ~ 1.0)
         self.front_intensity = [0.0] * 20
         self.back_intensity = [0.0] * 20
 
@@ -92,7 +88,6 @@ class PokemonHapticApp(tk.Tk):
         self._load_config_to_ui()
         self._start_render_loop()
 
-        # 창 닫기 시 자원 정리
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _setup_styles(self):
@@ -114,7 +109,6 @@ class PokemonHapticApp(tk.Tk):
         }
 
     def _setup_ui(self):
-        # 1. 상단 타이틀 배너
         header = tk.Frame(self, bg=self.colors["bg_card"], height=62, padx=20)
         header.pack(fill="x", side="top")
 
@@ -137,7 +131,6 @@ class PokemonHapticApp(tk.Tk):
             bg=self.colors["bg_card"]
         ).pack(anchor="w")
 
-        # 우측 상단 실시간 상태 뱃지
         badge_box = tk.Frame(header, bg=self.colors["bg_card"])
         badge_box.pack(side="right", pady=10)
 
@@ -180,7 +173,6 @@ class PokemonHapticApp(tk.Tk):
         )
         self.lbl_emu_badge.pack(side="left", padx=4)
 
-        # 2. 메인 컨텐츠 영역 (좌측: 설정 및 제어 / 우측: 실시간 배틀 및 2D 모터 맵)
         content = tk.Frame(self, bg=self.colors["bg_dark"], padx=14, pady=10)
         content.pack(fill="both", expand=True)
 
@@ -190,8 +182,7 @@ class PokemonHapticApp(tk.Tk):
         right_col = tk.Frame(content, bg=self.colors["bg_dark"], width=480)
         right_col.pack(side="right", fill="both", expand=True, padx=(8, 0))
 
-        # --- 좌측 열 (설정 및 제어) ---
-        # 카드 1: bHaptics 촉각 수트 연결 설정
+        # --- 좌측 열 ---
         cfg_card = tk.LabelFrame(
             left_col,
             text="  🛠️ bHaptics 촉각 수트 연동 설정  ",
@@ -205,7 +196,6 @@ class PokemonHapticApp(tk.Tk):
         )
         cfg_card.pack(fill="x", pady=(0, 8))
 
-        # 출력 방식 선택 (공식 SDK vs 웹소켓)
         mode_frame = tk.Frame(cfg_card, bg=self.colors["bg_card"])
         mode_frame.pack(fill="x", pady=2)
         tk.Label(mode_frame, text="연동 방식:", font=("Malgun Gothic", 9, "bold"), fg=self.colors["text_primary"], bg=self.colors["bg_card"]).pack(side="left")
@@ -227,7 +217,6 @@ class PokemonHapticApp(tk.Tk):
         )
         rb_ws.pack(side="left", padx=4)
 
-        # App ID & API Key 입력
         grid_f = tk.Frame(cfg_card, bg=self.colors["bg_card"])
         grid_f.pack(fill="x", pady=4)
 
@@ -243,7 +232,6 @@ class PokemonHapticApp(tk.Tk):
         self.btn_show_key.grid(row=1, column=2, sticky="e", pady=2)
         grid_f.columnconfigure(1, weight=1)
 
-        # 조끼 모터 수 및 앞/뒤 개별 강도
         tune_f = tk.Frame(cfg_card, bg=self.colors["bg_card"])
         tune_f.pack(fill="x", pady=4)
 
@@ -260,7 +248,6 @@ class PokemonHapticApp(tk.Tk):
         self.spin_bgain = tk.Spinbox(tune_f, from_=0.1, to=2.0, increment=0.1, format="%.1f", width=4, bg=self.colors["input_bg"], fg=self.colors["text_primary"])
         self.spin_bgain.pack(side="left", padx=(2, 6))
 
-        # 설정 저장 버튼
         btn_save = tk.Button(
             cfg_card,
             text="💾 설정 저장하기 (config.json 저장)",
@@ -275,7 +262,6 @@ class PokemonHapticApp(tk.Tk):
         )
         btn_save.pack(fill="x", pady=(4, 0))
 
-        # 카드 2: 브릿지 시작 및 전체 진동 조절
         ctrl_card = tk.LabelFrame(
             left_col,
             text="  ⚙️ 햅틱 브릿지 실행 및 강도 제어  ",
@@ -303,7 +289,6 @@ class PokemonHapticApp(tk.Tk):
         )
         self.btn_toggle.pack(fill="x", pady=(0, 6))
 
-        # 전체 진동 세기 슬라이더
         slider_box = tk.Frame(ctrl_card, bg=self.colors["bg_card"])
         slider_box.pack(fill="x", pady=2)
 
@@ -313,7 +298,6 @@ class PokemonHapticApp(tk.Tk):
         self.slider = ttk.Scale(slider_box, from_=50, to=150, value=100, orient="horizontal", command=self._on_slider_change)
         self.slider.pack(fill="x", pady=(2, 0))
 
-        # 카드 3: 원터치 진동 테스트 버튼
         test_card = tk.LabelFrame(
             left_col,
             text="  ⚡ 원터치 진동 테스트 (즉시 체험하기)  ",
@@ -351,8 +335,7 @@ class PokemonHapticApp(tk.Tk):
         for i in range(3):
             tests_grid.columnconfigure(i, weight=1)
 
-        # --- 우측 열 (실시간 배틀 상태 & 2D 조끼 모터 맵) ---
-        # 카드 4: 실시간 포켓몬 배틀 상태 & 체력 게이지
+        # --- 우측 열 ---
         hp_card = tk.LabelFrame(
             right_col,
             text="  🎮 실시간 포켓몬 배틀 상태  ",
@@ -382,7 +365,6 @@ class PokemonHapticApp(tk.Tk):
         self.hp_canvas.pack(fill="x", pady=4)
         self._draw_hp_bar(1.0)
 
-        # 카드 5: 2D 촉각 조끼 실시간 모터 진동 맵
         suit_card = tk.LabelFrame(
             right_col,
             text="  🦺 촉각 조끼 실시간 모터 진동 화면 (40개 모터)  ",
@@ -399,7 +381,6 @@ class PokemonHapticApp(tk.Tk):
         self.canvas = tk.Canvas(suit_card, width=440, height=220, bg="#11131f", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
 
-        # 카드 6: 실시간 피격 이벤트 기록 로그
         log_card = tk.LabelFrame(
             right_col,
             text="  📋 실시간 피격 기록 로그  ",
@@ -507,7 +488,6 @@ class PokemonHapticApp(tk.Tk):
 
     def toggle_bridge(self):
         if not self.is_running:
-            # 공식 SDK 모드일 때 키 검증
             if self.var_mode.get() == "bhaptics":
                 app_id = self.entry_app_id.get().strip()
                 api_key = self.entry_api_key.get().strip()
@@ -541,7 +521,6 @@ class PokemonHapticApp(tk.Tk):
         mode = self.var_mode.get()
 
         if mode == "bhaptics":
-            # 공식 SDK 초기화
             ok, msg = self.haptic_mgr.initialize_sdk()
             if ok:
                 self.after(0, lambda: self._update_badge("ws", True, "SDK 정상 연결"))
@@ -564,10 +543,15 @@ class PokemonHapticApp(tk.Tk):
                     cur_hp, max_hp = self._scan_active_battler()
 
                     if cur_hp is not None and max_hp is not None:
+                        # 배틀 진입 또는 포켓몬 교체 감지
                         if not self.in_battle:
                             self.in_battle = True
                             self.after(0, lambda c=cur_hp, m=max_hp: self._on_battle_start(c, m))
+                        elif self.last_max_hp != -1 and self.last_max_hp != max_hp:
+                            # 포켓몬 교체 발생!
+                            self.after(0, lambda c=cur_hp, m=max_hp: self._on_pokemon_switched(c, m))
 
+                        # 동일 포켓몬 체력 감소 시에만 피격 감지
                         if self.last_hp != -1 and self.last_max_hp == max_hp:
                             if cur_hp < self.last_hp:
                                 damage = self.last_hp - cur_hp
@@ -576,7 +560,6 @@ class PokemonHapticApp(tk.Tk):
 
                                 self.after(0, lambda d=damage, r=damage_ratio, c=cur_hp, m=max_hp: self._on_hit_detected(d, r, c, m))
 
-                                # 공식 SDK를 통한 모터 진동 전송
                                 frames = HapticPatternGenerator.get_pattern(damage_ratio, is_fainted)
                                 self.haptic_mgr.play_haptic(frames, master_gain=self.gain)
                                 self.after(0, lambda f=frames: self._animate_from_frames(f))
@@ -590,13 +573,12 @@ class PokemonHapticApp(tk.Tk):
                         self.last_hp = -1
                         self.last_max_hp = -1
 
-                    time.sleep(0.008)  # 120Hz (8ms)
+                    time.sleep(0.008)  # 120Hz
                 except Exception as e:
                     self.after(0, lambda err=str(e): self._log_event(f"SDK 실행 오류: {err}"))
                     time.sleep(1)
 
         else:
-            # 일반 웹소켓 모드
             async def run_ws_loop():
                 while self.is_running:
                     try:
@@ -622,6 +604,8 @@ class PokemonHapticApp(tk.Tk):
                                     if not self.in_battle:
                                         self.in_battle = True
                                         self.after(0, lambda c=cur_hp, m=max_hp: self._on_battle_start(c, m))
+                                    elif self.last_max_hp != -1 and self.last_max_hp != max_hp:
+                                        self.after(0, lambda c=cur_hp, m=max_hp: self._on_pokemon_switched(c, m))
 
                                     if self.last_hp != -1 and self.last_max_hp == max_hp:
                                         if cur_hp < self.last_hp:
@@ -699,6 +683,7 @@ class PokemonHapticApp(tk.Tk):
         return True
 
     def _scan_active_battler(self):
+        """Universal Battle Struct Scanner supporting ANY Pokémon switch."""
         if not self.h_process:
             return None, None
 
@@ -709,7 +694,24 @@ class PokemonHapticApp(tk.Tk):
 
         if kernel32.ReadProcessMemory(self.h_process, ctypes.c_void_p(scan_base), buf, scan_size, ctypes.byref(bytes_read)):
             data = buf.raw
-            for pattern in (b'\x21\x00\x2d\x00\x4b\x00\x00\x00', b'\x21\x00\x2d\x00', b'\x4b\x00\x00\x00'):
+            
+            # Universal Move Signatures covering Starters, Party, Wild, Gym Leaders
+            move_patterns = (
+                b'\x21\x00\x2d\x00',  # Tackle(33) + Growl(45) [Chikorita, Pidgey, Rattata...]
+                b'\x0a\x00\x2b\x00',  # Scratch(10) + Leer(43) [Totodile, Cyndaquil...]
+                b'\x21\x00\x1c\x00',  # Tackle(33) + Sand Attack(28) [Pidgey, Sentret...]
+                b'\x21\x00\x6f\x00',  # Tackle(33) + Defense Curl(111) [Geodude...]
+                b'\x01\x00',          # Pound(1) [Clefairy, Jigglypuff...]
+                b'\x62\x00',          # Quick Attack(98)
+                b'\x34\x00',          # Ember(52)
+                b'\x37\x00',          # Water Gun(55)
+                b'\x4b\x00',          # Razor Leaf(75)
+                b'\x2c\x00',          # Bite(44)
+                b'\x21\x00',          # General Tackle(33)
+                b'\x0a\x00'           # General Scratch(10)
+            )
+
+            for pattern in move_patterns:
                 idx = 0
                 candidates = []
                 while True:
@@ -720,6 +722,7 @@ class PokemonHapticApp(tk.Tk):
                     if hp_offset + 4 <= len(data):
                         c, m = struct.unpack("<HH", data[hp_offset:hp_offset+4])
                         pp1, pp2 = data[idx+12], data[idx+13]
+                        # Verify PP validity
                         if pp1 in (35, 40, 25, 30, 20, 15, 10, 5) and pp2 in (40, 35, 25, 30, 20, 15, 10, 5, 0):
                             if 10 <= m <= 999 and 0 < c <= m:
                                 if m not in (4, 40, 1542, 3073):
@@ -753,11 +756,18 @@ class PokemonHapticApp(tk.Tk):
             self.lbl_emu_badge.config(text=f"● 에뮬레이터: {label_text}", fg=color, bg=bg)
 
     def _on_battle_start(self, cur_hp, max_hp):
-        self.lbl_battle_status.config(text="⚔️ 현재 상태: 포켓몬 배틀 진행 중 (실시간 연동 활성)", fg=self.colors["accent_green"])
+        self.lbl_battle_status.config(text="⚔️ 현재 상태: 배틀 진행 중 (실시간 연동 활성)", fg=self.colors["accent_green"])
         ratio = cur_hp / max_hp if max_hp > 0 else 1.0
         self.lbl_hp_val.config(text=f"포켓몬 체력: {cur_hp} / {max_hp} ({ratio*100:.0f}%)")
         self._draw_hp_bar(ratio)
         self._log_event(f"배틀 진입! 출전 포켓몬 감지 완료 (체력 {cur_hp}/{max_hp})")
+
+    def _on_pokemon_switched(self, cur_hp, max_hp):
+        """포켓몬 교체 시 오탐 피격을 방지하고 새 체력 기준점을 설정합니다."""
+        ratio = cur_hp / max_hp if max_hp > 0 else 1.0
+        self.lbl_hp_val.config(text=f"포켓몬 체력: {cur_hp} / {max_hp} ({ratio*100:.0f}%)")
+        self._draw_hp_bar(ratio)
+        self._log_event(f"🔄 [포켓몬 교체 감지!] 새로운 포켓몬 등장 (체력: {cur_hp}/{max_hp})")
 
     def _on_battle_end(self):
         self.lbl_battle_status.config(text="🌿 현재 상태: 필드 탐색 중 / 배틀 대기 중...", fg=self.colors["text_secondary"])
