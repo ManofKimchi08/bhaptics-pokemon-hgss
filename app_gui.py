@@ -1,9 +1,9 @@
 """
-bHaptics Pokémon HeartGold (KOR) - All-in-One GUI Control Center
-Author: Antigravity Pair Programmer
-Description:
-    Modern Dark-Mode GUI Dashboard with Official bhaptics-python SDK & WebSocket support.
-    Includes App ID / API Key config, 32/40 motor resampling, live HP gauge, and 2D motor map.
+포켓몬스터 하트골드(KOR) - bHaptics 촉각 수트 통합 제어판 (All-in-One GUI)
+작성자: Antigravity Pair Programmer
+설명:
+    공식 bhaptics-python SDK 및 120Hz 초저지연 메모리 훅 기반의 사용자 친화형 한글 GUI 대시보드입니다.
+    실시간 체력 게이지, 2D 조끼 모터 맵, 진동 강도 조절, 원터치 진동 테스트, 설정 저장 기능을 제공합니다.
 """
 
 import asyncio
@@ -32,7 +32,7 @@ from bhaptics_bridge import (
     save_config
 )
 
-# Windows API Constants for Process Memory Read
+# Windows API 메모리 읽기 상수
 PROCESS_QUERY_INFORMATION = 0x0400
 PROCESS_VM_READ = 0x0010
 TH32CS_SNAPMODULE = 0x00000008
@@ -57,22 +57,22 @@ class MODULEENTRY32(ctypes.Structure):
 class PokemonHapticApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("bHaptics Pokémon HeartGold - Haptic Control Center")
+        self.title("포켓몬스터 하트골드 - bHaptics 촉각 수트 제어 센터")
         self.geometry("1020x760")
         self.configure(bg="#0f111a")
         self.resizable(False, False)
 
-        # Load config
+        # 설정 불러오기
         self.config = load_config()
         self.haptic_mgr = HapticOutputManager(self.config)
 
-        # State variables
+        # 상태 변수
         self.is_running = False
         self.gain = 1.0
         self.ws_client = None
         self.reader_thread = None
 
-        # Live stats
+        # 실시간 게임 데이터
         self.cur_hp = 0
         self.max_hp = 0
         self.last_hp = -1
@@ -83,7 +83,7 @@ class PokemonHapticApp(tk.Tk):
         self.mod_base = 0
         self.active_offset = 0
 
-        # Motor intensities (0.0 ~ 1.0)
+        # 모터 진동 강도 (0.0 ~ 1.0)
         self.front_intensity = [0.0] * 20
         self.back_intensity = [0.0] * 20
 
@@ -92,7 +92,7 @@ class PokemonHapticApp(tk.Tk):
         self._load_config_to_ui()
         self._start_render_loop()
 
-        # Handle window close cleanly
+        # 창 닫기 시 자원 정리
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _setup_styles(self):
@@ -114,8 +114,8 @@ class PokemonHapticApp(tk.Tk):
         }
 
     def _setup_ui(self):
-        # 1. Top Header Banner
-        header = tk.Frame(self, bg=self.colors["bg_card"], height=60, padx=20)
+        # 1. 상단 타이틀 배너
+        header = tk.Frame(self, bg=self.colors["bg_card"], height=62, padx=20)
         header.pack(fill="x", side="top")
 
         title_box = tk.Frame(header, bg=self.colors["bg_card"])
@@ -123,28 +123,28 @@ class PokemonHapticApp(tk.Tk):
 
         tk.Label(
             title_box,
-            text="⚡ Pokémon HeartGold bHaptics Bridge",
-            font=("Segoe UI", 15, "bold"),
+            text="⚡ 포켓몬스터 하트골드 촉각 수트(bHaptics) 연동 센터",
+            font=("Malgun Gothic", 15, "bold"),
             fg=self.colors["accent_blue"],
             bg=self.colors["bg_card"]
         ).pack(anchor="w")
 
         tk.Label(
             title_box,
-            text="Official bhaptics-python SDK & 120Hz Ultra-Low Latency Direct Memory Control Panel",
-            font=("Segoe UI", 8),
+            text="120Hz 초저지연 메모리 감지 및 공식 bHaptics SDK 통합 제어 대시보드",
+            font=("Malgun Gothic", 9),
             fg=self.colors["text_secondary"],
             bg=self.colors["bg_card"]
         ).pack(anchor="w")
 
-        # Top Right Status Badges
+        # 우측 상단 실시간 상태 뱃지
         badge_box = tk.Frame(header, bg=self.colors["bg_card"])
         badge_box.pack(side="right", pady=10)
 
         self.lbl_mode_badge = tk.Label(
             badge_box,
-            text="● Mode: Official SDK",
-            font=("Segoe UI", 8, "bold"),
+            text="● 모드: 공식 SDK",
+            font=("Malgun Gothic", 9, "bold"),
             fg=self.colors["accent_purple"],
             bg="#2c1a3b",
             padx=8,
@@ -156,8 +156,8 @@ class PokemonHapticApp(tk.Tk):
 
         self.lbl_ws_badge = tk.Label(
             badge_box,
-            text="● Haptic: Ready",
-            font=("Segoe UI", 8, "bold"),
+            text="● 햅틱: 대기 중",
+            font=("Malgun Gothic", 9, "bold"),
             fg=self.colors["accent_orange"],
             bg="#2c221a",
             padx=8,
@@ -169,8 +169,8 @@ class PokemonHapticApp(tk.Tk):
 
         self.lbl_emu_badge = tk.Label(
             badge_box,
-            text="● DeSmuME: Searching",
-            font=("Segoe UI", 8, "bold"),
+            text="● 에뮬레이터: 탐색 중",
+            font=("Malgun Gothic", 9, "bold"),
             fg=self.colors["text_secondary"],
             bg="#24283b",
             padx=8,
@@ -180,7 +180,7 @@ class PokemonHapticApp(tk.Tk):
         )
         self.lbl_emu_badge.pack(side="left", padx=4)
 
-        # 2. Main Content (Left: Settings & Controls / Right: HP, 2D Suit & Logs)
+        # 2. 메인 컨텐츠 영역 (좌측: 설정 및 제어 / 우측: 실시간 배틀 및 2D 모터 맵)
         content = tk.Frame(self, bg=self.colors["bg_dark"], padx=14, pady=10)
         content.pack(fill="both", expand=True)
 
@@ -190,12 +190,12 @@ class PokemonHapticApp(tk.Tk):
         right_col = tk.Frame(content, bg=self.colors["bg_dark"], width=480)
         right_col.pack(side="right", fill="both", expand=True, padx=(8, 0))
 
-        # --- LEFT COLUMN ---
-        # Card 1: Official bHaptics SDK & Hardware Settings
+        # --- 좌측 열 (설정 및 제어) ---
+        # 카드 1: bHaptics 촉각 수트 연결 설정
         cfg_card = tk.LabelFrame(
             left_col,
-            text="  🛠️ bHaptics SDK & HARDWARE SETTINGS  ",
-            font=("Segoe UI", 9, "bold"),
+            text="  🛠️ bHaptics 촉각 수트 연동 설정  ",
+            font=("Malgun Gothic", 9, "bold"),
             fg=self.colors["accent_purple"],
             bg=self.colors["bg_card"],
             padx=14,
@@ -205,37 +205,37 @@ class PokemonHapticApp(tk.Tk):
         )
         cfg_card.pack(fill="x", pady=(0, 8))
 
-        # Output Mode Selection
+        # 출력 방식 선택 (공식 SDK vs 웹소켓)
         mode_frame = tk.Frame(cfg_card, bg=self.colors["bg_card"])
         mode_frame.pack(fill="x", pady=2)
-        tk.Label(mode_frame, text="Output Mode:", font=("Segoe UI", 9, "bold"), fg=self.colors["text_primary"], bg=self.colors["bg_card"]).pack(side="left")
+        tk.Label(mode_frame, text="연동 방식:", font=("Malgun Gothic", 9, "bold"), fg=self.colors["text_primary"], bg=self.colors["bg_card"]).pack(side="left")
 
         self.var_mode = tk.StringVar(value="bhaptics")
         rb_sdk = tk.Radiobutton(
-            mode_frame, text="Official SDK (App ID / API Key)", variable=self.var_mode, value="bhaptics",
-            font=("Segoe UI", 9), fg=self.colors["accent_green"], bg=self.colors["bg_card"],
+            mode_frame, text="공식 SDK 모드 (권장)", variable=self.var_mode, value="bhaptics",
+            font=("Malgun Gothic", 9), fg=self.colors["accent_green"], bg=self.colors["bg_card"],
             selectcolor=self.colors["bg_dark"], activebackground=self.colors["bg_card"],
             command=self._on_mode_change
         )
         rb_sdk.pack(side="left", padx=6)
 
         rb_ws = tk.Radiobutton(
-            mode_frame, text="Legacy WebSocket", variable=self.var_mode, value="websocket",
-            font=("Segoe UI", 9), fg=self.colors["text_secondary"], bg=self.colors["bg_card"],
+            mode_frame, text="일반 웹소켓 모드 (키 불필요)", variable=self.var_mode, value="websocket",
+            font=("Malgun Gothic", 9), fg=self.colors["text_secondary"], bg=self.colors["bg_card"],
             selectcolor=self.colors["bg_dark"], activebackground=self.colors["bg_card"],
             command=self._on_mode_change
         )
         rb_ws.pack(side="left", padx=4)
 
-        # App ID & API Key Entries
+        # App ID & API Key 입력
         grid_f = tk.Frame(cfg_card, bg=self.colors["bg_card"])
         grid_f.pack(fill="x", pady=4)
 
-        tk.Label(grid_f, text="App ID:", font=("Segoe UI", 9), fg=self.colors["text_secondary"], bg=self.colors["bg_card"]).grid(row=0, column=0, sticky="w", pady=2)
+        tk.Label(grid_f, text="앱 아이디 (App ID):", font=("Malgun Gothic", 9), fg=self.colors["text_secondary"], bg=self.colors["bg_card"]).grid(row=0, column=0, sticky="w", pady=2)
         self.entry_app_id = tk.Entry(grid_f, font=("Consolas", 9), bg=self.colors["input_bg"], fg=self.colors["text_primary"], bd=1, relief="solid")
         self.entry_app_id.grid(row=0, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=2)
 
-        tk.Label(grid_f, text="API Key:", font=("Segoe UI", 9), fg=self.colors["text_secondary"], bg=self.colors["bg_card"]).grid(row=1, column=0, sticky="w", pady=2)
+        tk.Label(grid_f, text="인증 키 (API Key):", font=("Malgun Gothic", 9), fg=self.colors["text_secondary"], bg=self.colors["bg_card"]).grid(row=1, column=0, sticky="w", pady=2)
         self.entry_api_key = tk.Entry(grid_f, font=("Consolas", 9), bg=self.colors["input_bg"], fg=self.colors["text_primary"], bd=1, relief="solid", show="*")
         self.entry_api_key.grid(row=1, column=1, sticky="ew", padx=(8, 4), pady=2)
 
@@ -243,28 +243,28 @@ class PokemonHapticApp(tk.Tk):
         self.btn_show_key.grid(row=1, column=2, sticky="e", pady=2)
         grid_f.columnconfigure(1, weight=1)
 
-        # Motor Count & Gains
+        # 조끼 모터 수 및 앞/뒤 개별 강도
         tune_f = tk.Frame(cfg_card, bg=self.colors["bg_card"])
         tune_f.pack(fill="x", pady=4)
 
-        tk.Label(tune_f, text="Motors:", font=("Segoe UI", 9), fg=self.colors["text_secondary"], bg=self.colors["bg_card"]).pack(side="left")
-        self.combo_motors = ttk.Combobox(tune_f, values=["32 (TactSuit Pro / Resampled)", "40 (TactSuit X40)"], state="readonly", width=22)
+        tk.Label(tune_f, text="조끼 모델:", font=("Malgun Gothic", 9), fg=self.colors["text_secondary"], bg=self.colors["bg_card"]).pack(side="left")
+        self.combo_motors = ttk.Combobox(tune_f, values=["32개 (TactSuit Pro / 일반)", "40개 (TactSuit X40 풀버전)"], state="readonly", width=22)
         self.combo_motors.current(0)
-        self.combo_motors.pack(side="left", padx=(4, 12))
+        self.combo_motors.pack(side="left", padx=(4, 10))
 
-        tk.Label(tune_f, text="Front:", font=("Segoe UI", 9), fg=self.colors["text_secondary"], bg=self.colors["bg_card"]).pack(side="left")
+        tk.Label(tune_f, text="앞면배율:", font=("Malgun Gothic", 9), fg=self.colors["text_secondary"], bg=self.colors["bg_card"]).pack(side="left")
         self.spin_fgain = tk.Spinbox(tune_f, from_=0.1, to=2.0, increment=0.1, format="%.1f", width=4, bg=self.colors["input_bg"], fg=self.colors["text_primary"])
-        self.spin_fgain.pack(side="left", padx=(2, 8))
+        self.spin_fgain.pack(side="left", padx=(2, 6))
 
-        tk.Label(tune_f, text="Back:", font=("Segoe UI", 9), fg=self.colors["text_secondary"], bg=self.colors["bg_card"]).pack(side="left")
+        tk.Label(tune_f, text="뒷면배율:", font=("Malgun Gothic", 9), fg=self.colors["text_secondary"], bg=self.colors["bg_card"]).pack(side="left")
         self.spin_bgain = tk.Spinbox(tune_f, from_=0.1, to=2.0, increment=0.1, format="%.1f", width=4, bg=self.colors["input_bg"], fg=self.colors["text_primary"])
-        self.spin_bgain.pack(side="left", padx=(2, 8))
+        self.spin_bgain.pack(side="left", padx=(2, 6))
 
-        # Save Button
+        # 설정 저장 버튼
         btn_save = tk.Button(
             cfg_card,
-            text="💾 SAVE SETTINGS (설정 저장)",
-            font=("Segoe UI", 9, "bold"),
+            text="💾 설정 저장하기 (config.json 저장)",
+            font=("Malgun Gothic", 9, "bold"),
             bg=self.colors["btn_bg"],
             fg=self.colors["accent_blue"],
             activebackground=self.colors["btn_hover"],
@@ -275,11 +275,11 @@ class PokemonHapticApp(tk.Tk):
         )
         btn_save.pack(fill="x", pady=(4, 0))
 
-        # Card 2: Master Controls
+        # 카드 2: 브릿지 시작 및 전체 진동 조절
         ctrl_card = tk.LabelFrame(
             left_col,
-            text="  ⚙️ MASTER CONTROLS  ",
-            font=("Segoe UI", 9, "bold"),
+            text="  ⚙️ 햅틱 브릿지 실행 및 강도 제어  ",
+            font=("Malgun Gothic", 9, "bold"),
             fg=self.colors["accent_blue"],
             bg=self.colors["bg_card"],
             padx=14,
@@ -291,8 +291,8 @@ class PokemonHapticApp(tk.Tk):
 
         self.btn_toggle = tk.Button(
             ctrl_card,
-            text="▶ START HAPTIC BRIDGE (브릿지 시작)",
-            font=("Segoe UI", 11, "bold"),
+            text="▶ 햅틱 브릿지 시작 (진동 연동 켜기)",
+            font=("Malgun Gothic", 11, "bold"),
             bg=self.colors["accent_green"],
             fg="#0f111a",
             activebackground="#2ea043",
@@ -303,21 +303,21 @@ class PokemonHapticApp(tk.Tk):
         )
         self.btn_toggle.pack(fill="x", pady=(0, 6))
 
-        # Master Gain Slider
+        # 전체 진동 세기 슬라이더
         slider_box = tk.Frame(ctrl_card, bg=self.colors["bg_card"])
         slider_box.pack(fill="x", pady=2)
 
-        self.lbl_gain = tk.Label(slider_box, text="Master Intensity Gain: 100%", font=("Segoe UI", 9, "bold"), fg=self.colors["text_primary"], bg=self.colors["bg_card"])
+        self.lbl_gain = tk.Label(slider_box, text="전체 진동 강도 (마스터 게인): 100%", font=("Malgun Gothic", 9, "bold"), fg=self.colors["text_primary"], bg=self.colors["bg_card"])
         self.lbl_gain.pack(anchor="w")
 
         self.slider = ttk.Scale(slider_box, from_=50, to=150, value=100, orient="horizontal", command=self._on_slider_change)
         self.slider.pack(fill="x", pady=(2, 0))
 
-        # Card 3: Quick Test Triggers
+        # 카드 3: 원터치 진동 테스트 버튼
         test_card = tk.LabelFrame(
             left_col,
-            text="  ⚡ QUICK TEST TRIGGERS (즉시 진동 테스트)  ",
-            font=("Segoe UI", 9, "bold"),
+            text="  ⚡ 원터치 진동 테스트 (즉시 체험하기)  ",
+            font=("Malgun Gothic", 9, "bold"),
             fg=self.colors["accent_orange"],
             bg=self.colors["bg_card"],
             padx=14,
@@ -331,18 +331,18 @@ class PokemonHapticApp(tk.Tk):
         tests_grid.pack(fill="x")
 
         tests = [
-            ("Light (15%)", lambda: self.trigger_manual_test(0.15, False)),
-            ("Medium (35%)", lambda: self.trigger_manual_test(0.35, False)),
-            ("Heavy (65%)", lambda: self.trigger_manual_test(0.65, False)),
-            ("Critical (90%)", lambda: self.trigger_manual_test(0.90, False)),
-            ("Fainted (0 HP)", lambda: self.trigger_manual_test(1.0, True)),
-            ("Heartbeat", lambda: self.trigger_manual_heartbeat()),
+            ("가벼운 공격 (15%)", lambda: self.trigger_manual_test(0.15, False)),
+            ("중간 공격 (35%)", lambda: self.trigger_manual_test(0.35, False)),
+            ("강한 공격 (65%)", lambda: self.trigger_manual_test(0.65, False)),
+            ("치명타 (90%)", lambda: self.trigger_manual_test(0.90, False)),
+            ("기절/빈사 (0 HP)", lambda: self.trigger_manual_test(1.0, True)),
+            ("심장 박동 펄스", lambda: self.trigger_manual_heartbeat()),
         ]
 
         for idx, (label, cmd) in enumerate(tests):
             r, c = idx // 3, idx % 3
             btn = tk.Button(
-                tests_grid, text=label, font=("Segoe UI", 8),
+                tests_grid, text=label, font=("Malgun Gothic", 8, "bold"),
                 bg=self.colors["btn_bg"], fg=self.colors["text_primary"],
                 activebackground=self.colors["btn_hover"], activeforeground="#ffffff",
                 relief="flat", pady=3, command=cmd
@@ -351,12 +351,12 @@ class PokemonHapticApp(tk.Tk):
         for i in range(3):
             tests_grid.columnconfigure(i, weight=1)
 
-        # --- RIGHT COLUMN ---
-        # Card 4: Live Pokémon Status & HP Bar
+        # --- 우측 열 (실시간 배틀 상태 & 2D 조끼 모터 맵) ---
+        # 카드 4: 실시간 포켓몬 배틀 상태 & 체력 게이지
         hp_card = tk.LabelFrame(
             right_col,
-            text="  🎮 LIVE POKÉMON BATTLE STATUS  ",
-            font=("Segoe UI", 9, "bold"),
+            text="  🎮 실시간 포켓몬 배틀 상태  ",
+            font=("Malgun Gothic", 9, "bold"),
             fg=self.colors["accent_green"],
             bg=self.colors["bg_card"],
             padx=12,
@@ -367,14 +367,14 @@ class PokemonHapticApp(tk.Tk):
         hp_card.pack(fill="x", pady=(0, 6))
 
         self.lbl_battle_status = tk.Label(
-            hp_card, text="🌿 Status: Overworld / Waiting for Battle...",
-            font=("Segoe UI", 10, "bold"), fg=self.colors["text_secondary"], bg=self.colors["bg_card"]
+            hp_card, text="🌿 현재 상태: 필드 탐색 중 / 배틀 대기 중...",
+            font=("Malgun Gothic", 10, "bold"), fg=self.colors["text_secondary"], bg=self.colors["bg_card"]
         )
         self.lbl_battle_status.pack(anchor="w")
 
         self.lbl_hp_val = tk.Label(
-            hp_card, text="HP: -- / -- (100%)",
-            font=("Segoe UI", 12, "bold"), fg=self.colors["accent_green"], bg=self.colors["bg_card"]
+            hp_card, text="포켓몬 체력: -- / -- (100%)",
+            font=("Malgun Gothic", 12, "bold"), fg=self.colors["accent_green"], bg=self.colors["bg_card"]
         )
         self.lbl_hp_val.pack(anchor="w", pady=(2, 0))
 
@@ -382,11 +382,11 @@ class PokemonHapticApp(tk.Tk):
         self.hp_canvas.pack(fill="x", pady=4)
         self._draw_hp_bar(1.0)
 
-        # Card 5: 2D Interactive TactSuit Map
+        # 카드 5: 2D 촉각 조끼 실시간 모터 진동 맵
         suit_card = tk.LabelFrame(
             right_col,
-            text="  🦺 TACTSUIT X40 REAL-TIME MOTOR MAP  ",
-            font=("Segoe UI", 9, "bold"),
+            text="  🦺 촉각 조끼 실시간 모터 진동 화면 (40개 모터)  ",
+            font=("Malgun Gothic", 9, "bold"),
             fg=self.colors["accent_blue"],
             bg=self.colors["bg_card"],
             padx=8,
@@ -399,11 +399,11 @@ class PokemonHapticApp(tk.Tk):
         self.canvas = tk.Canvas(suit_card, width=440, height=220, bg="#11131f", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
 
-        # Card 6: Live Hit Activity Log
+        # 카드 6: 실시간 피격 이벤트 기록 로그
         log_card = tk.LabelFrame(
             right_col,
-            text="  📋 REAL-TIME HIT EVENT LOG  ",
-            font=("Segoe UI", 9, "bold"),
+            text="  📋 실시간 피격 기록 로그  ",
+            font=("Malgun Gothic", 9, "bold"),
             fg=self.colors["text_secondary"],
             bg=self.colors["bg_card"],
             padx=6,
@@ -418,7 +418,7 @@ class PokemonHapticApp(tk.Tk):
             font=("Consolas", 8), bd=0, padx=4, pady=2
         )
         self.log_box.pack(fill="both", expand=True)
-        self._log_event("Control center ready. Configure App ID / API Key or select Legacy WebSocket.")
+        self._log_event("제어 센터가 준비되었습니다. '햅틱 브릿지 시작' 버튼을 눌러주세요.")
 
     def _load_config_to_ui(self):
         sink = self.config.get("sink", {})
@@ -465,17 +465,17 @@ class PokemonHapticApp(tk.Tk):
         if save_config(new_cfg):
             self.config = new_cfg
             self.haptic_mgr = HapticOutputManager(self.config)
-            self._log_event("✅ Settings saved successfully to config.json!")
-            messagebox.showinfo("설정 저장 완료", "bHaptics SDK 및 하드웨어 설정이 config.json에 성공적으로 저장되었습니다.")
+            self._log_event("✅ 설정이 config.json 파일에 성공적으로 저장되었습니다.")
+            messagebox.showinfo("설정 저장 완료", "bHaptics 연동 설정이 성공적으로 저장되었습니다.")
         else:
-            self._log_event("❌ Failed to save config.json.")
+            self._log_event("❌ 설정 파일(config.json) 저장에 실패했습니다.")
 
     def _on_mode_change(self):
         mode = self.var_mode.get()
         if mode == "bhaptics":
-            self.lbl_mode_badge.config(text="● Mode: Official SDK", fg=self.colors["accent_purple"], bg="#2c1a3b")
+            self.lbl_mode_badge.config(text="● 모드: 공식 SDK", fg=self.colors["accent_purple"], bg="#2c1a3b")
         else:
-            self.lbl_mode_badge.config(text="● Mode: WebSocket", fg=self.colors["accent_blue"], bg="#192b3b")
+            self.lbl_mode_badge.config(text="● 모드: 웹소켓", fg=self.colors["accent_blue"], bg="#192b3b")
 
     def _toggle_key_visibility(self):
         if self.entry_api_key.cget("show") == "*":
@@ -498,7 +498,7 @@ class PokemonHapticApp(tk.Tk):
 
     def _on_slider_change(self, val):
         self.gain = float(val) / 100.0
-        self.lbl_gain.config(text=f"Master Intensity Gain: {int(float(val))}%")
+        self.lbl_gain.config(text=f"전체 진동 강도 (마스터 게인): {int(float(val))}%")
 
     def _log_event(self, msg):
         timestamp = time.strftime("%H:%M:%S")
@@ -507,48 +507,47 @@ class PokemonHapticApp(tk.Tk):
 
     def toggle_bridge(self):
         if not self.is_running:
-            # Validate SDK Credentials if bhaptics mode is selected
+            # 공식 SDK 모드일 때 키 검증
             if self.var_mode.get() == "bhaptics":
                 app_id = self.entry_app_id.get().strip()
                 api_key = self.entry_api_key.get().strip()
                 if not app_id or not api_key:
                     messagebox.showerror(
-                        "bHaptics SDK 인증 필요",
+                        "bHaptics 인증 정보 필요",
                         "공식 SDK 모드를 사용하려면 bHaptics Developer Portal에서 발급받은\n"
                         "App ID와 API Key를 입력하고 '설정 저장'을 눌러주세요.\n\n"
-                        "(API Key가 없으시다면 'Legacy WebSocket' 모드를 선택해 주세요.)"
+                        "(발급받은 키가 없으시다면 '일반 웹소켓 모드'를 선택하시면 바로 실행됩니다.)"
                     )
-                    self._log_event("⚠️ Error: App ID or API Key is missing for official SDK mode.")
+                    self._log_event("⚠️ 오류: 공식 SDK 연동에 필요한 App ID 또는 API Key가 비어있습니다.")
                     return
 
-                # Auto save latest entries
                 self.save_settings()
 
             self.is_running = True
-            self.btn_toggle.config(text="⏹ STOP HAPTIC BRIDGE (브릿지 중지)", bg=self.colors["accent_red"], activebackground="#da3633")
-            self._log_event(f"Starting 120Hz Memory Bridge (Mode: {self.var_mode.get()})...")
+            self.btn_toggle.config(text="⏹ 햅틱 브릿지 중지 (진동 연동 끄기)", bg=self.colors["accent_red"], activebackground="#da3633")
+            self._log_event(f"120Hz 초고속 메모리 브릿지 가동 시작 (연동 모드: {self.var_mode.get()})...")
             self.reader_thread = threading.Thread(target=self._bridge_worker, daemon=True)
             self.reader_thread.start()
         else:
             self.is_running = False
-            self.btn_toggle.config(text="▶ START HAPTIC BRIDGE (브릿지 시작)", bg=self.colors["accent_green"], activebackground="#2ea043")
+            self.btn_toggle.config(text="▶ 햅틱 브릿지 시작 (진동 연동 켜기)", bg=self.colors["accent_green"], activebackground="#2ea043")
             self.haptic_mgr.stop_all()
-            self._log_event("Haptic Bridge stopped.")
-            self.lbl_battle_status.config(text="Status: Bridge Stopped", fg=self.colors["text_secondary"])
-            self._update_badge("ws", False, "Ready")
+            self._log_event("햅틱 브릿지가 중지되었습니다.")
+            self.lbl_battle_status.config(text="현재 상태: 브릿지 중지됨", fg=self.colors["text_secondary"])
+            self._update_badge("ws", False, "대기 중")
 
     def _bridge_worker(self):
-        """Runs the 120Hz Process Memory Scan & Haptic Dispatch."""
+        """120Hz DeSmuME 메모리 스캔 및 햅틱 신호 전송 백그라운드 루프"""
         mode = self.var_mode.get()
 
         if mode == "bhaptics":
-            # Initialize Official SDK
+            # 공식 SDK 초기화
             ok, msg = self.haptic_mgr.initialize_sdk()
             if ok:
-                self.after(0, lambda: self._update_badge("ws", True, "SDK Active"))
-                self.after(0, lambda: self._log_event("🟢 Official bhaptics-python SDK initialized!"))
+                self.after(0, lambda: self._update_badge("ws", True, "SDK 정상 연결"))
+                self.after(0, lambda: self._log_event("🟢 공식 bhaptics-python SDK가 정상적으로 초기화되었습니다!"))
             else:
-                self.after(0, lambda: self._update_badge("ws", False, "SDK Init Fail"))
+                self.after(0, lambda: self._update_badge("ws", False, "SDK 초기화 실패"))
                 self.after(0, lambda m=msg: self._log_event(f"❌ {m}"))
 
             while self.is_running:
@@ -556,9 +555,9 @@ class PokemonHapticApp(tk.Tk):
                     if not self.h_process:
                         if self._attach_desmume():
                             self.after(0, lambda: self._update_badge("emu", True, f"PID {self.pid}"))
-                            self.after(0, lambda: self._log_event(f"Attached to DeSmuME PID {self.pid}!"))
+                            self.after(0, lambda: self._log_event(f"DeSmuME 에뮬레이터 연결 성공 (PID {self.pid})!"))
                         else:
-                            self.after(0, lambda: self._update_badge("emu", False, "Searching..."))
+                            self.after(0, lambda: self._update_badge("emu", False, "탐색 중..."))
                             time.sleep(1)
                             continue
 
@@ -577,7 +576,7 @@ class PokemonHapticApp(tk.Tk):
 
                                 self.after(0, lambda d=damage, r=damage_ratio, c=cur_hp, m=max_hp: self._on_hit_detected(d, r, c, m))
 
-                                # Play via official SDK
+                                # 공식 SDK를 통한 모터 진동 전송
                                 frames = HapticPatternGenerator.get_pattern(damage_ratio, is_fainted)
                                 self.haptic_mgr.play_haptic(frames, master_gain=self.gain)
                                 self.after(0, lambda f=frames: self._animate_from_frames(f))
@@ -591,29 +590,29 @@ class PokemonHapticApp(tk.Tk):
                         self.last_hp = -1
                         self.last_max_hp = -1
 
-                    time.sleep(0.008)  # 120Hz polling
+                    time.sleep(0.008)  # 120Hz (8ms)
                 except Exception as e:
-                    self.after(0, lambda err=str(e): self._log_event(f"SDK Loop Error: {err}"))
+                    self.after(0, lambda err=str(e): self._log_event(f"SDK 실행 오류: {err}"))
                     time.sleep(1)
 
         else:
-            # WebSocket Legacy Mode
+            # 일반 웹소켓 모드
             async def run_ws_loop():
                 while self.is_running:
                     try:
-                        self.after(0, lambda: self._update_badge("ws", False, "Connecting..."))
+                        self.after(0, lambda: self._update_badge("ws", False, "연결 시도 중..."))
                         async with websockets.connect(DEFAULT_WS_URL, max_size=None, ping_interval=None) as ws:
                             self.ws_client = ws
-                            self.after(0, lambda: self._update_badge("ws", True, "Connected (:15881)"))
-                            self.after(0, lambda: self._log_event("Connected to bHaptics Player via WebSocket!"))
+                            self.after(0, lambda: self._update_badge("ws", True, "웹소켓 정상 연결"))
+                            self.after(0, lambda: self._log_event("bHaptics Player와 웹소켓(15881)으로 정상 연결되었습니다!"))
 
                             while self.is_running:
                                 if not self.h_process:
                                     if self._attach_desmume():
                                         self.after(0, lambda: self._update_badge("emu", True, f"PID {self.pid}"))
-                                        self.after(0, lambda: self._log_event(f"Attached to DeSmuME PID {self.pid}!"))
+                                        self.after(0, lambda: self._log_event(f"DeSmuME 에뮬레이터 연결 성공 (PID {self.pid})!"))
                                     else:
-                                        self.after(0, lambda: self._update_badge("emu", False, "Searching..."))
+                                        self.after(0, lambda: self._update_badge("emu", False, "탐색 중..."))
                                         await asyncio.sleep(1)
                                         continue
 
@@ -655,10 +654,10 @@ class PokemonHapticApp(tk.Tk):
                                 await asyncio.sleep(0.008)
 
                     except (ConnectionRefusedError, OSError):
-                        self.after(0, lambda: self._update_badge("ws", False, "Disconnected"))
+                        self.after(0, lambda: self._update_badge("ws", False, "연결 끊김"))
                         await asyncio.sleep(2)
                     except Exception as e:
-                        self.after(0, lambda err=str(e): self._log_event(f"Bridge Error: {err}"))
+                        self.after(0, lambda err=str(e): self._log_event(f"웹소켓 통신 오류: {err}"))
                         await asyncio.sleep(2)
 
             asyncio.run(run_ws_loop())
@@ -747,30 +746,30 @@ class PokemonHapticApp(tk.Tk):
         if target == "ws":
             color = self.colors["accent_green"] if connected else self.colors["accent_orange"]
             bg = "#192b20" if connected else "#2c221a"
-            self.lbl_ws_badge.config(text=f"● Haptic: {label_text}", fg=color, bg=bg)
+            self.lbl_ws_badge.config(text=f"● 햅틱: {label_text}", fg=color, bg=bg)
         elif target == "emu":
             color = self.colors["accent_green"] if connected else self.colors["text_secondary"]
             bg = "#192b20" if connected else "#24283b"
-            self.lbl_emu_badge.config(text=f"● DeSmuME: {label_text}", fg=color, bg=bg)
+            self.lbl_emu_badge.config(text=f"● 에뮬레이터: {label_text}", fg=color, bg=bg)
 
     def _on_battle_start(self, cur_hp, max_hp):
-        self.lbl_battle_status.config(text="⚔️ Status: BATTLE ACTIVE", fg=self.colors["accent_green"])
+        self.lbl_battle_status.config(text="⚔️ 현재 상태: 포켓몬 배틀 진행 중 (실시간 연동 활성)", fg=self.colors["accent_green"])
         ratio = cur_hp / max_hp if max_hp > 0 else 1.0
-        self.lbl_hp_val.config(text=f"HP: {cur_hp} / {max_hp} ({ratio*100:.0f}%)")
+        self.lbl_hp_val.config(text=f"포켓몬 체력: {cur_hp} / {max_hp} ({ratio*100:.0f}%)")
         self._draw_hp_bar(ratio)
-        self._log_event(f"Battle started! Pokémon Locked (HP {cur_hp}/{max_hp})")
+        self._log_event(f"배틀 진입! 출전 포켓몬 감지 완료 (체력 {cur_hp}/{max_hp})")
 
     def _on_battle_end(self):
-        self.lbl_battle_status.config(text="🌿 Status: Overworld / Waiting for Battle...", fg=self.colors["text_secondary"])
-        self.lbl_hp_val.config(text="HP: -- / -- (100%)")
+        self.lbl_battle_status.config(text="🌿 현재 상태: 필드 탐색 중 / 배틀 대기 중...", fg=self.colors["text_secondary"])
+        self.lbl_hp_val.config(text="포켓몬 체력: -- / -- (100%)")
         self._draw_hp_bar(1.0)
-        self._log_event("Battle ended. Returning to overworld.")
+        self._log_event("배틀 종료. 필드로 복귀합니다.")
 
     def _on_hit_detected(self, damage, ratio, cur_hp, max_hp):
         hp_pct = (cur_hp / max_hp) * 100 if max_hp > 0 else 0
-        self.lbl_hp_val.config(text=f"HP: {cur_hp} / {max_hp} ({hp_pct:.0f}%)")
+        self.lbl_hp_val.config(text=f"포켓몬 체력: {cur_hp} / {max_hp} ({hp_pct:.0f}%)")
         self._draw_hp_bar(cur_hp / max_hp)
-        self._log_event(f"💥 [HIT!] -{damage} HP ({ratio*100:.1f}%) | HP: {cur_hp}/{max_hp}")
+        self._log_event(f"💥 [피격 감지!] 데미지: -{damage} HP ({ratio*100:.1f}%) | 잔여 체력: {cur_hp}/{max_hp}")
 
     def _animate_from_frames(self, frames):
         for frame in frames:
@@ -787,7 +786,7 @@ class PokemonHapticApp(tk.Tk):
     def trigger_manual_test(self, damage_ratio, is_fainted):
         frames = HapticPatternGenerator.get_pattern(damage_ratio, is_fainted)
         self._animate_from_frames(frames)
-        self._log_event(f"Manual Test Triggered: {int(damage_ratio*100)}% Damage Pattern")
+        self._log_event(f"원터치 테스트 발동: {int(damage_ratio*100)}% 데미지 진동 패턴")
 
         if self.var_mode.get() == "bhaptics":
             self.haptic_mgr.play_haptic(frames, master_gain=self.gain)
@@ -803,12 +802,12 @@ class PokemonHapticApp(tk.Tk):
     def trigger_manual_heartbeat(self):
         pattern = HapticPatternGenerator.get_heartbeat_pattern()
         self._animate_from_frames(pattern)
-        self._log_event("Manual Test Triggered: Low HP Heartbeat Pulse")
+        self._log_event("원터치 테스트 발동: 저체력 심장 박동(쿵-쾅) 펄스")
         if self.var_mode.get() == "bhaptics":
             self.haptic_mgr.play_haptic(pattern, master_gain=self.gain)
 
     def _draw_motors_layout(self, offset_x, title, intensities):
-        self.canvas.create_text(offset_x + 95, 14, text=title, fill=self.colors["text_primary"], font=("Segoe UI", 9, "bold"))
+        self.canvas.create_text(offset_x + 95, 14, text=title, fill=self.colors["text_primary"], font=("Malgun Gothic", 9, "bold"))
 
         self.canvas.create_rectangle(
             offset_x + 10, 28, offset_x + 180, 210,
@@ -855,8 +854,8 @@ class PokemonHapticApp(tk.Tk):
 
     def _render(self):
         self.canvas.delete("all")
-        self._draw_motors_layout(20, "VEST FRONT (전면)", self.front_intensity)
-        self._draw_motors_layout(225, "VEST BACK (후면)", self.back_intensity)
+        self._draw_motors_layout(20, "조끼 앞면 (가슴/복부 20개)", self.front_intensity)
+        self._draw_motors_layout(225, "조끼 뒷면 (등/허리 20개)", self.back_intensity)
 
         decay = 0.03
         for i in range(20):
