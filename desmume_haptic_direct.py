@@ -2,8 +2,8 @@
 Ultra-Low Latency (120Hz) Direct ProcessMemory bHaptics Bridge for Pokémon HeartGold
 Author: Antigravity Pair Programmer
 Description:
-    True Latest Ring-Buffer Slot Selection (Sort by lowest HP to capture new damage).
-    Strict PP validation to eliminate fake matches (like 44/771).
+    Official bhaptics-python SDK & WebSocket fallback integration.
+    Reads config.json, selects latest ring-buffer damage state, and triggers tactile feedback.
 """
 
 import asyncio
@@ -11,13 +11,20 @@ import ctypes
 from ctypes import wintypes
 import json
 import logging
+import os
 import struct
 import subprocess
 import sys
 import time
 import websockets
 
-from bhaptics_bridge import DEFAULT_WS_URL, HapticPatternGenerator
+from bhaptics_bridge import (
+    DEFAULT_WS_URL,
+    HAS_BHAPTICS_SDK,
+    HapticOutputManager,
+    HapticPatternGenerator,
+    load_config
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,7 +37,7 @@ ENABLE_EXTENDED_FLAGS = 0x0080
 ENABLE_QUICK_EDIT_MODE = 0x0040
 
 def disable_quickedit():
-    h_stdin = ctypes.windll.kernel32.GetStdHandle(-10) # STD_INPUT_HANDLE
+    h_stdin = ctypes.windll.kernel32.GetStdHandle(-10)
     mode = wintypes.DWORD()
     if ctypes.windll.kernel32.GetConsoleMode(h_stdin, ctypes.byref(mode)):
         mode.value &= ~ENABLE_QUICK_EDIT_MODE
@@ -41,7 +48,6 @@ PROCESS_QUERY_INFORMATION = 0x0400
 PROCESS_VM_READ = 0x0010
 TH32CS_SNAPMODULE = 0x00000008
 TH32CS_SNAPMODULE32 = 0x00000010
-
 kernel32 = ctypes.windll.kernel32
 
 
@@ -107,19 +113,16 @@ class DeSmuMEProcessMemoryReader:
         return True
 
     def scan_active_battler(self):
-        """Ultra-fast 512KB scan selecting the latest updated battle slot."""
         if not self.h_process:
             return None, None
 
         scan_base = self.mod_base + 0xABD0000
-        scan_size = 0x100000 # 1MB
+        scan_size = 0x100000
         buf = ctypes.create_string_buffer(scan_size)
         bytes_read = ctypes.c_size_t(0)
 
         if kernel32.ReadProcessMemory(self.h_process, ctypes.c_void_p(scan_base), buf, scan_size, ctypes.byref(bytes_read)):
             data = buf.raw
-            
-            # Primary Move Header: Tackle(33) + Growl(45) or RazorLeaf(75)
             for pattern in (b'\x21\x00\x2d\x00\x4b\x00\x00\x00', b'\x21\x00\x2d\x00', b'\x4b\x00\x00\x00'):
                 idx = 0
                 candidates = []
@@ -127,11 +130,9 @@ class DeSmuMEProcessMemoryReader:
                     idx = data.find(pattern, idx)
                     if idx == -1:
                         break
-                    
                     hp_offset = idx + 16
                     if hp_offset + 4 <= len(data):
                         c, m = struct.unpack("<HH", data[hp_offset:hp_offset+4])
-                        # Verify PP signature at idx+12 to eliminate false matches
                         pp1, pp2 = data[idx+12], data[idx+13]
                         if pp1 in (35, 40, 25, 30, 20, 15, 10, 5) and pp2 in (40, 35, 25, 30, 20, 15, 10, 5, 0):
                             if 10 <= m <= 999 and 0 < c <= m:
@@ -140,17 +141,14 @@ class DeSmuMEProcessMemoryReader:
                     idx += 2
 
                 if candidates:
-                    # If we are already tracking a Pokemon, filter by its Max HP
                     if self.last_max_hp > 0:
                         matched = [cand for cand in candidates if cand[1] == self.last_max_hp]
                         if matched:
-                            # CRITICAL FIX: Sort by Current HP ascending to get the LATEST damage state!
                             matched.sort(key=lambda x: x[0])
                             c, m, off = matched[0]
                             self.active_offset = off
                             return c, m
 
-                    # Initial lock: Sort by Current HP ascending to get latest active state
                     candidates.sort(key=lambda x: x[0])
                     c, m, off = candidates[0]
                     self.active_offset = off
@@ -159,88 +157,81 @@ class DeSmuMEProcessMemoryReader:
         return None, None
 
 
-async def main():
+def run_standalone_sdk():
     disable_quickedit()
+    cfg = load_config()
+    haptic_mgr = HapticOutputManager(cfg)
     reader = DeSmuMEProcessMemoryReader()
+
     print("=" * 65)
-    print("  ⚡ Ultra-Low Latency (120Hz / 8ms) bHaptics Bridge")
-    print("  - True Latest Damage State Tracking (Ring-Buffer Auto-Sync)")
+    print("  ⚡ Ultra-Low Latency (120Hz) Official bHaptics SDK Bridge")
+    print(f"  - Output Mode: {haptic_mgr.sink_kind.upper()} (Motors: {haptic_mgr.motor_count})")
     print("  - Response Time: < 8ms (Instant Zero-Delay Impact)")
     print("=" * 65)
 
-    last_status_print = 0
+    if haptic_mgr.sink_kind == "bhaptics":
+        if not haptic_mgr.app_id or not haptic_mgr.api_key:
+            logger.warning("App ID or API Key is empty in config.json. Please launch run_app.bat to configure.")
+        ok, msg = haptic_mgr.initialize_sdk()
+        if ok:
+            logger.info(f"Official bHaptics SDK initialized successfully!")
+        else:
+            logger.warning(f"Official SDK Init Notice: {msg}")
+
     in_battle = False
+    last_status_print = 0
 
-    while True:
-        try:
-            logger.info(f"Connecting to bHaptics Player ({DEFAULT_WS_URL})...")
-            async with websockets.connect(DEFAULT_WS_URL, max_size=None, ping_interval=None) as ws:
-                logger.info("Connected to bHaptics Player successfully!\n")
+    try:
+        while True:
+            if not reader.h_process:
+                if reader.attach():
+                    logger.info(f"Attached to DeSmuME PID {reader.pid}!")
+                else:
+                    time.sleep(1)
+                    continue
 
-                while True:
-                    if not reader.h_process:
-                        if reader.attach():
-                            logger.info(f"Attached to DeSmuME PID {reader.pid}!")
-                        else:
-                            await asyncio.sleep(1)
-                            continue
+            cur_hp, max_hp = reader.scan_active_battler()
 
-                    cur_hp, max_hp = reader.scan_active_battler()
+            if cur_hp is not None and max_hp is not None:
+                if not in_battle:
+                    logger.info(f"⚔️ [BATTLE STARTED] Active Pokémon HP: {cur_hp}/{max_hp} (Slot +0x{reader.active_offset:X})")
+                    in_battle = True
 
-                    if cur_hp is not None and max_hp is not None:
-                        if not in_battle:
-                            logger.info(f"⚔️ [BATTLE STARTED] Active Pokémon HP: {cur_hp}/{max_hp} (Slot +0x{reader.active_offset:X})")
-                            in_battle = True
+                if reader.last_hp != -1 and reader.last_max_hp == max_hp:
+                    if cur_hp < reader.last_hp:
+                        damage = reader.last_hp - cur_hp
+                        damage_ratio = damage / max_hp
+                        is_fainted = (cur_hp == 0)
 
-                        # Instant Damage Detection & Haptic Trigger
-                        if reader.last_hp != -1 and reader.last_max_hp == max_hp:
-                            if cur_hp < reader.last_hp:
-                                damage = reader.last_hp - cur_hp
-                                damage_ratio = damage / max_hp
-                                is_fainted = (cur_hp == 0)
+                        print(f"\n💥 [HIT DETECTED!] Damage: -{damage} HP ({damage_ratio*100:.1f}%) | HP: {cur_hp}/{max_hp} (Slot +0x{reader.active_offset:X})")
 
-                                print(f"\n💥 [HIT DETECTED!] Damage: -{damage} HP ({damage_ratio*100:.1f}%) | HP: {cur_hp}/{max_hp} (Slot +0x{reader.active_offset:X})")
+                        frames = HapticPatternGenerator.get_pattern(damage_ratio, is_fainted)
+                        haptic_mgr.play_haptic(frames)
 
-                                # Send vibration packet instantly to bHaptics Player
-                                frames = HapticPatternGenerator.get_pattern(damage_ratio, is_fainted)
-                                submit_list = [{"Type": "turnOff", "Key": "PokemonDamage"}]
-                                for frame in frames:
-                                    submit_list.append({"Type": "frame", "Key": "PokemonDamage", "Frame": frame})
-                                await ws.send(json.dumps({"Submit": submit_list}))
+                reader.last_hp = cur_hp
+                reader.last_max_hp = max_hp
+            else:
+                if in_battle:
+                    logger.info("🏳️ [BATTLE ENDED] Returning to Overworld / Menu...")
+                    in_battle = False
+                reader.last_hp = -1
+                reader.last_max_hp = -1
 
-                        reader.last_hp = cur_hp
-                        reader.last_max_hp = max_hp
-                    else:
-                        if in_battle:
-                            logger.info("🏳️ [BATTLE ENDED] Returning to Overworld / Menu...")
-                            in_battle = False
-                        reader.last_hp = -1
-                        reader.last_max_hp = -1
+            now = time.time()
+            if now - last_status_print > 1.5:
+                if in_battle and reader.last_hp != -1:
+                    sys.stdout.write(f"\r[Live Monitor] ⚔️ Battle Active | HP: {reader.last_hp}/{reader.last_max_hp} | Status: OK   ")
+                else:
+                    sys.stdout.write(f"\r[Live Monitor] 🌿 Overworld / Waiting for Battle...                       ")
+                sys.stdout.flush()
+                last_status_print = now
 
-                    # Live heartbeat output every 1.5 seconds
-                    now = time.time()
-                    if now - last_status_print > 1.5:
-                        if in_battle and reader.last_hp != -1:
-                            sys.stdout.write(f"\r[Live Monitor] ⚔️ Battle Active | HP: {reader.last_hp}/{reader.last_max_hp} | Status: OK   ")
-                        else:
-                            sys.stdout.write(f"\r[Live Monitor] 🌿 Overworld / Waiting for Battle...                       ")
-                        sys.stdout.flush()
-                        last_status_print = now
-
-                    # 8ms Polling (120Hz Ultra-Fast Reaction Time)
-                    await asyncio.sleep(0.008)
-
-        except (ConnectionRefusedError, OSError):
-            logger.warning("bHaptics Player not reachable. Retrying in 2 seconds...")
-            await asyncio.sleep(2)
-        except Exception as e:
-            logger.error(f"Unexpected error: {e}")
-            await asyncio.sleep(2)
+            time.sleep(0.008)  # 120Hz
+    except KeyboardInterrupt:
+        print("\nExiting...")
+    finally:
+        haptic_mgr.close()
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\nExiting.")
-        sys.exit(0)
+    run_standalone_sdk()

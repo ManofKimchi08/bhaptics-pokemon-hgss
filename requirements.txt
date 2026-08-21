@@ -1,1 +1,2 @@
-websockets>=12.0
+websockets
+bhaptics-python>=0.2.2

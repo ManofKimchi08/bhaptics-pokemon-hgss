@@ -1,0 +1,10 @@
+{
+  "sink": {
+    "kind": "bhaptics",
+    "app_id": "",
+    "api_key": "",
+    "motor_count": 32,
+    "front_gain": 1.0,
+    "back_gain": 1.0
+  }
+}
