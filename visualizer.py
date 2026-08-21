@@ -1,10 +1,10 @@
 """
-bHaptics TactSuit PC Visualizer & Simulator
+bHaptics TactSuit PC Visualizer & Simulator (Thread-Safe)
 Author: Antigravity Pair Programmer
 Description:
     Real-time 2D On-Screen Visualizer for TactSuit X40 (Front 20 + Back 20 motors).
     Emulates bHaptics Player WebSocket Server on port 15881 (ws://localhost:15881/v2/feedbacks).
-    Compatible with Python 3.8 ~ 3.13+.
+    100% Thread-Safe Tkinter UI Rendering.
 """
 
 import asyncio
@@ -144,8 +144,8 @@ class TactSuitVisualizer(tk.Tk):
         else:
             self.lbl_hit.config(text=f"Status: [HIT] Damage -{damage_ratio*100:.1f}% received!", fg="#fab387")
 
-    def process_bhaptics_submit(self, submit_list):
-        """Parses standard bHaptics WebSocket Submit payload."""
+    def _on_ws_submit(self, submit_list):
+        """Thread-safe UI callback for incoming bHaptics WebSocket payloads."""
         hit_detected = False
         for item in submit_list:
             if item.get("Type") == "frame":
@@ -163,7 +163,10 @@ class TactSuitVisualizer(tk.Tk):
                         hit_detected = True
 
         if hit_detected:
-            self.lbl_hit.config(text="Status: 💥 [LIVE HIT DETECTED] bHaptics Packet Received!", fg="#fab387")
+            self.lbl_hit.config(text="Status: 💥 [LIVE HIT DETECTED] Vest Motors Vibrating!", fg="#fab387")
+
+    def _on_ws_connect(self):
+        self.lbl_hit.config(text="Status: 🟢 [CONNECTED] Bridge Connected to Visualizer!", fg="#a6e3a1")
 
     def _draw_motors(self, offset_x, title, intensities):
         self.canvas.create_text(offset_x + 140, 24, text=title, fill="#cdd6f4", font=("Segoe UI", 12, "bold"))
@@ -216,7 +219,7 @@ class TactSuitVisualizer(tk.Tk):
         self._draw_motors(40, "VEST FRONT (전면)", self.front_intensity)
         self._draw_motors(410, "VEST BACK (후면)", self.back_intensity)
 
-        decay = 0.04
+        decay = 0.02  # Smooth visible glow
         for i in range(20):
             if self.front_intensity[i] > 0:
                 self.front_intensity[i] = max(0.0, self.front_intensity[i] - decay)
@@ -230,12 +233,12 @@ class TactSuitVisualizer(tk.Tk):
 
     def _start_websocket_server(self):
         async def handler(websocket):
-            self.lbl_hit.config(text="Status: 🟢 [CONNECTED] Bridge Connected to Visualizer!", fg="#a6e3a1")
+            self.after(0, self._on_ws_connect)
             async for message in websocket:
                 try:
                     payload = json.loads(message)
                     submit_list = payload.get("Submit", [])
-                    self.process_bhaptics_submit(submit_list)
+                    self.after(0, lambda sl=submit_list: self._on_ws_submit(sl))
                 except Exception:
                     pass
 
