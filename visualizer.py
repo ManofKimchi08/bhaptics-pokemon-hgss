@@ -3,26 +3,25 @@ bHaptics TactSuit PC Visualizer & Simulator
 Author: Antigravity Pair Programmer
 Description:
     Real-time 2D On-Screen Visualizer for TactSuit X40 (Front 20 + Back 20 motors).
-    Displays damage animations, motor intensities, and Pokemon HP bar.
-    No physical TactSuit required!
+    Emulates bHaptics Player WebSocket Server on port 15881 (ws://localhost:15881/v2/feedbacks).
+    Zero physical TactSuit required!
 """
 
+import asyncio
 import json
-import math
-import socket
 import threading
 import time
 import tkinter as tk
-from tkinter import ttk
+import websockets
 
-from bhaptics_bridge import DEFAULT_UDP_PORT, HapticPatternGenerator
+from bhaptics_bridge import DEFAULT_WS_PORT, HapticPatternGenerator
 
 
 class TactSuitVisualizer(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("bHaptics TactSuit X40 - PC Simulator (Pokemon HGSS)")
-        self.geometry("780x620")
+        self.geometry("780x630")
         self.configure(bg="#1e1e2e")
         self.resizable(False, False)
 
@@ -33,10 +32,9 @@ class TactSuitVisualizer(tk.Tk):
         # In-game stats
         self.cur_hp = 100
         self.max_hp = 100
-        self.last_damage_text = "Waiting for battle..."
 
         self._setup_ui()
-        self._start_udp_listener()
+        self._start_websocket_server()
         self._start_render_loop()
 
     def _setup_ui(self):
@@ -66,7 +64,7 @@ class TactSuitVisualizer(tk.Tk):
 
         self.lbl_hit = tk.Label(
             self.status_frame,
-            text="Status: Ready (DeSmuME UDP Listener Active on :8765)",
+            text="Status: Ready (bHaptics WebSocket Server Listening on :15881)",
             font=("Segoe UI", 10),
             fg="#89b4fa",
             bg="#181825"
@@ -142,8 +140,28 @@ class TactSuitVisualizer(tk.Tk):
         else:
             self.lbl_hit.config(text=f"Status: [HIT] Damage -{damage_ratio*100:.1f}% received!", fg="#fab387")
 
+    def process_bhaptics_submit(self, submit_list):
+        """Parses standard bHaptics WebSocket Submit payload."""
+        hit_detected = False
+        for item in submit_list:
+            if item.get("Type") == "frame":
+                frame = item.get("Frame", {})
+                pos = frame.get("Position")
+                dots = frame.get("DotPoints", [])
+                for dot in dots:
+                    idx = dot.get("Index", 0)
+                    intensity = dot.get("Intensity", 0) / 100.0
+                    if pos == "VestFront" and 0 <= idx < 20:
+                        self.front_intensity[idx] = max(self.front_intensity[idx], intensity)
+                        hit_detected = True
+                    elif pos == "VestBack" and 0 <= idx < 20:
+                        self.back_intensity[idx] = max(self.back_intensity[idx], intensity)
+                        hit_detected = True
+
+        if hit_detected:
+            self.lbl_hit.config(text="Status: 💥 [LIVE HIT DETECTED] bHaptics Packet Received!", fg="#fab387")
+
     def _draw_motors(self, offset_x, title, intensities):
-        # Draw Suit outline
         self.canvas.create_text(offset_x + 140, 24, text=title, fill="#cdd6f4", font=("Segoe UI", 12, "bold"))
 
         # Vest body silhouette
@@ -152,9 +170,7 @@ class TactSuitVisualizer(tk.Tk):
             outline="#45475a", width=2, fill="#181825"
         )
 
-        # 4 cols x 5 rows = 20 motors layout
         cols = 4
-        rows = 5
         start_x = offset_x + 55
         start_y = 75
         spacing_x = 55
@@ -168,18 +184,17 @@ class TactSuitVisualizer(tk.Tk):
             cy = start_y + r * spacing_y
 
             val = intensities[i]
-            # Color transition: Dark Gray -> Cyan -> Orange -> Red
             if val <= 0.05:
                 color = "#313244"
                 text_color = "#6c7086"
             elif val <= 0.40:
-                color = "#89dceb"  # Light Cyan
+                color = "#89dceb"
                 text_color = "#11111b"
             elif val <= 0.75:
-                color = "#fab387"  # Orange
+                color = "#fab387"
                 text_color = "#11111b"
             else:
-                color = "#f38ba8"  # Hot Pink / Red
+                color = "#f38ba8"
                 text_color = "#11111b"
 
             self.canvas.create_oval(
@@ -195,12 +210,9 @@ class TactSuitVisualizer(tk.Tk):
 
     def _render(self):
         self.canvas.delete("all")
-
-        # Draw Front and Back
         self._draw_motors(40, "VEST FRONT (전면)", self.front_intensity)
         self._draw_motors(410, "VEST BACK (후면)", self.back_intensity)
 
-        # Decay intensities smoothly
         decay = 0.04
         for i in range(20):
             if self.front_intensity[i] > 0:
@@ -213,28 +225,28 @@ class TactSuitVisualizer(tk.Tk):
     def _start_render_loop(self):
         self.after(30, self._render)
 
-    def _start_udp_listener(self):
-        def listener():
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            try:
-                sock.bind(("127.0.0.1", DEFAULT_UDP_PORT))
-            except Exception as e:
-                print(f"[Visualizer] UDP Bind Note: {e} (Will operate in standalone mode)")
-                return
-
-            while True:
+    def _start_websocket_server(self):
+        async def handler(websocket):
+            self.lbl_hit.config(text="Status: 🟢 [CONNECTED] Bridge Connected to Visualizer!", fg="#a6e3a1")
+            async for message in websocket:
                 try:
-                    data, _ = sock.recvfrom(2048)
-                    msg = json.loads(data.decode("utf-8"))
-                    dmg = msg.get("damage_ratio", 0.0)
-                    faint = msg.get("is_fainted", False)
-                    c_hp = msg.get("cur_hp", 100)
-                    m_hp = msg.get("max_hp", 100)
-                    self.process_haptic_event(dmg, faint, c_hp, m_hp)
+                    payload = json.loads(message)
+                    submit_list = payload.get("Submit", [])
+                    self.process_bhaptics_submit(submit_list)
                 except Exception:
                     pass
 
-        t = threading.Thread(target=listener, daemon=True)
+        def run_server():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            start_server = websockets.serve(handler, "127.0.0.1", DEFAULT_WS_PORT)
+            try:
+                loop.run_until_complete(start_server)
+                loop.run_forever()
+            except Exception as e:
+                print(f"[Visualizer Server Note] Port {DEFAULT_WS_PORT}: {e}")
+
+        t = threading.Thread(target=run_server, daemon=True)
         t.start()
 
 
