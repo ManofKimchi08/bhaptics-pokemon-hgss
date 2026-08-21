@@ -4,7 +4,7 @@ Author: Antigravity Pair Programmer
 Description:
     Real-time 2D On-Screen Visualizer for TactSuit X40 (Front 20 + Back 20 motors).
     Emulates bHaptics Player WebSocket Server on port 15881 (ws://localhost:15881/v2/feedbacks).
-    Zero physical TactSuit required!
+    Compatible with Python 3.8 ~ 3.13+.
 """
 
 import asyncio
@@ -239,13 +239,13 @@ class TactSuitVisualizer(tk.Tk):
                 except Exception:
                     pass
 
+        async def main_server():
+            async with websockets.serve(handler, "127.0.0.1", DEFAULT_WS_PORT):
+                await asyncio.Future()
+
         def run_server():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            start_server = websockets.serve(handler, "127.0.0.1", DEFAULT_WS_PORT)
             try:
-                loop.run_until_complete(start_server)
-                loop.run_forever()
+                asyncio.run(main_server())
             except Exception as e:
                 print(f"[Visualizer Server Note] Port {DEFAULT_WS_PORT}: {e}")
 
