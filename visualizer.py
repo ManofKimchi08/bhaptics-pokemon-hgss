@@ -14,7 +14,11 @@ import time
 import tkinter as tk
 import websockets
 
-from bhaptics_bridge import DEFAULT_WS_PORT, HapticPatternGenerator
+try:
+    from bhaptics_bridge import DEFAULT_WS_PORT, HapticPatternGenerator
+except ImportError:
+    DEFAULT_WS_PORT = 15881
+    from bhaptics_bridge import HapticPatternGenerator
 
 
 class TactSuitVisualizer(tk.Tk):
@@ -164,7 +168,6 @@ class TactSuitVisualizer(tk.Tk):
     def _draw_motors(self, offset_x, title, intensities):
         self.canvas.create_text(offset_x + 140, 24, text=title, fill="#cdd6f4", font=("Segoe UI", 12, "bold"))
 
-        # Vest body silhouette
         self.canvas.create_rectangle(
             offset_x + 20, 46, offset_x + 260, 340,
             outline="#45475a", width=2, fill="#181825"
